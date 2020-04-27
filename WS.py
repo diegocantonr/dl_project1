@@ -131,7 +131,7 @@ def compute_nb_errors(model, data_input, data_target, mini_batch_size):
 
     return nb_errors
 
-def run_model(model, nb_samples, nb_epochs, mini_batch_size, criterion=nn.CrossEntropyLoss()):
+def run_model(model, nb_samples, nb_epochs, mini_batch_size, criterion=nn.CrossEntropyLoss(), lossplot=True):
     
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -167,12 +167,13 @@ def run_model(model, nb_samples, nb_epochs, mini_batch_size, criterion=nn.CrossE
     train_error = compute_nb_errors(model, train_input, train_target, mini_batch_size) 
     test_error = compute_nb_errors(model, test_input, test_target, mini_batch_size)
 
-    # Plot train loss and test accuracy over all epochs
-    plot_loss_acc(train_loss, accuracies)
+    # Plot train loss and test accuracy over all epochs if lossplot=True
+    if lossplot:
+        plot_loss_acc(train_loss, accuracies)
     
     return train_error, test_error, train_loss
 
-def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100):
+def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100, lossplot=True, boxplot=True):
     
     models = [WS_net, WS_Best_Net]
     avg_errors = [[[] for x in range(2)] for y in range(len(models))]
@@ -182,7 +183,10 @@ def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=
 
     for e in range(nb_average):
         for ind, mod in enumerate(models):
-            train_error, test_error, _ = run_model(mod, nb_samples, nb_epochs, mini_batch_size)
+            if lossplot:
+                train_error, test_error, _ = run_model(mod, nb_samples, nb_epochs, mini_batch_size, lossplot=True)
+            else:
+                train_error, test_error, _ = run_model(mod, nb_samples, nb_epochs, mini_batch_size, lossplot=False)
             
             avg_errors[ind][0].append(train_error)
             avg_errors[ind][1].append(test_error)
@@ -198,7 +202,8 @@ def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=
         test_average = statistics.mean(avg_errors[:][ind][1])
         print(mod().__class__.__name__+' : train_error average = {:0.2f}%, test_error average = {:0.2f}%'.format((100 * train_average) / nb_samples, (100 * test_average) / nb_samples))
 
-    plt.boxplot(train_accs)
-    plt.boxplot(test_accs)
+    if boxplot:    
+        plt.boxplot(train_accs)
+        plt.boxplot(test_accs)  
     
     return avg_errors
