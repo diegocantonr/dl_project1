@@ -1,7 +1,7 @@
-import helpers
 from helpers import*
+from plots import *
 import statistics
-    
+   
 class ConvNet3(nn.Module):
     def __init__(self):
         super(ConvNet3, self).__init__()
@@ -37,10 +37,11 @@ class shared_layers(nn.Module):
         #use softmax on fc3 in final prediction layer?
         self.fc3 = nn.Linear(100,10)
         self.dropout = nn.Dropout(0.25)
+   
     def forward(self, x):
-        x = F.relu(F.max_pool2d(self.conv1(x), kernel_size=2,stride=2))
-        x = F.relu(F.max_pool2d(self.conv2(x), kernel_size=2,stride=2))
-        x = self.dropout(self.bn1(F.relu(self.fc1(x.view(-1,2*2*64)))))
+        x = F.relu(F.max_pool2d(self.conv1(x), kernel_size=2, stride=2))
+        x = F.relu(F.max_pool2d(self.conv2(x), kernel_size=2, stride=2))
+        x = self.dropout(self.bn1(F.relu(self.fc1(x.view(-1, 256)))))
         x = self.dropout(self.bn2(F.relu(self.fc2(x))))
         x = F.softmax(self.fc3(x),dim=1)
         return x
@@ -60,9 +61,10 @@ class final_predictionlayer(nn.Module):
     
 class WS_Best_Net(nn.Module):
     def __init__(self):
-        super(WS_Best_Net,self).__init__()
+        super(WS_Best_Net, self).__init__()
         self.shared = shared_layers()
         self.final = final_predictionlayer()
+    
     def forward(self,x):
         tmp1 = x.narrow(1,0,1) #viewing only one image
         tmp2 = x.narrow(1,1,1) #viewing only one image
@@ -81,6 +83,7 @@ class WS_net(nn.Module):
         super(WS_net, self).__init__()
         self.ConvNet = ConvNet3()
         self.final = final_predictionlayer()
+    
     def forward(self,x):
         tmp1 = x.narrow(1,0,1) #viewing only one image
         tmp2 = x.narrow(1,1,1) #viewing only one image
@@ -94,9 +97,10 @@ class WS_net(nn.Module):
         x = self.final(output)
         return x.softmax(1)
     
-def train_model(model, train_input, train_target, mini_batch_size, nb_epochs, criterion, eta=9e-2):
-    optimizer = optim.SGD(model.parameters(), lr = eta)
+def train_model(model, train_input, train_target, test_input, test_target, mini_batch_size, nb_epochs, criterion, eta=9e-2): 
+    optimizer = optim.SGD(model.parameters(), lr = eta, weight_decay=5e-4)
     losses = []
+    accuracies = []
     
     for e in range(nb_epochs):
         sum_loss = 0
@@ -109,8 +113,12 @@ def train_model(model, train_input, train_target, mini_batch_size, nb_epochs, cr
             sum_loss += loss.item()
         
         losses.append(sum_loss)
+        
+        test_error = compute_nb_errors(model, test_input, test_target, mini_batch_size)
+        test_acc = 100-100*(test_error/test_input.size(0))
+        accuracies.append(test_acc)
     
-    return losses
+    return losses, accuracies
 
 def compute_nb_errors(model, data_input, data_target, mini_batch_size):
 
@@ -125,21 +133,13 @@ def compute_nb_errors(model, data_input, data_target, mini_batch_size):
 
     return nb_errors
 
-def run_model(model, nb_samples, nb_epochs, mini_batch_size, criterion=nn.CrossEntropyLoss()):
-    
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-        print("Using : {}".format(device))
-    else:
-        device = torch.device('cpu')
-        print("Using : {}".format(device))
+def run_model(model, nb_samples, nb_epochs, mini_batch_size, device, criterion=nn.CrossEntropyLoss(), lossplot=True):
     
     # Load data
     train_input, train_target, _, test_input, test_target, _ = prologue.generate_pair_sets(nb_samples)
 
-    # Standardize data
-    train_input = standardize(train_input)
-    test_input = standardize(test_input)
+    # Normalize data
+    train_input, test_input = normalize(train_input, test_input)
     
     # Set autograd to True
     train_input, train_target = train_input.float().requires_grad_(), train_target.float().requires_grad_()
@@ -155,33 +155,52 @@ def run_model(model, nb_samples, nb_epochs, mini_batch_size, criterion=nn.CrossE
     model.to(device)
     model.train(True)
     
-    train_loss = train_model(model, train_input, train_target, mini_batch_size, nb_epochs, criterion.to(device), eta=2e-1)
-    
+    # Train model and return list of loss at each epoch
+    train_loss, accuracies = train_model(model, train_input, train_target, test_input, test_target, mini_batch_size, nb_epochs, criterion.to(device), eta=9e-2)
+                            
     model.train(False)
     
+    # compute accuracy from nb of errors
     train_error = compute_nb_errors(model, train_input, train_target, mini_batch_size) 
+    train_acc = 100-100*(train_error/nb_samples)
     test_error = compute_nb_errors(model, test_input, test_target, mini_batch_size)
+    test_acc = 100-100*(test_error/nb_samples)
     
-    return train_error, test_error, train_loss
+    # Plot train loss and test accuracy over all epochs if lossplot=True
+    if lossplot:
+        plot_loss_acc(train_loss, accuracies)
+    
+    return train_acc, test_acc, train_loss
 
-def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100):
+def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100, lossplot=True):
+    
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        print("Using : {}".format(device))
+    else:
+        device = torch.device('cpu')
+        print("Using : {}".format(device))
     
     models = [WS_net, WS_Best_Net]
     avg_errors = [[[] for x in range(2)] for y in range(len(models))]
 
     for e in range(nb_average):
         for ind, mod in enumerate(models):
-            train_error, test_error, _ = run_model(mod, nb_samples, nb_epochs, mini_batch_size)
+            train_acc, test_acc, _ = run_model(mod, nb_samples, nb_epochs, mini_batch_size, device, lossplot=lossplot)
             
-            avg_errors[ind][0].append(train_error)
-            avg_errors[ind][1].append(test_error)
+            avg_errors[ind][0].append(train_acc)
+            avg_errors[ind][1].append(test_acc)
             
-            print(e, mod().__class__.__name__+': train error Net {:0.2f}%'.format((100 * train_error) / nb_samples))
-            print(e, mod().__class__.__name__+': test error Net {:0.2f}%'.format((100 * test_error) / nb_samples))
+            print(e, mod().__class__.__name__+': train error = {:0.2f}%,  test error = {:0.2f}%'.format(100-train_acc, 100-test_acc))
             
     for ind, mod in enumerate(models):
         train_average = statistics.mean(avg_errors[:][ind][0])
         test_average = statistics.mean(avg_errors[:][ind][1])
-        print(mod().__class__.__name__+' : train_error average = {:0.2f}%, test_error average = {:0.2f}%'.format((100 * train_average) / nb_samples, (100 * test_average) / nb_samples))
-
+        
+        train_std = statistics.stdev(avg_errors[:][ind][0])
+        test_std = statistics.stdev(avg_errors[:][ind][1])
+       
+        print(mod().__class__.__name__+' : train_acc average = {:0.2f}%, test_acc average = {:0.2f}%'.format(train_average, test_average))
+        print(mod().__class__.__name__+' : train_acc std = {:0.2f}%, test_acc std = {:0.2f}%'.format(train_std, test_std))
+        
     return avg_errors
