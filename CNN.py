@@ -169,19 +169,19 @@ def train_model(model, train_input, train_target, test_input, test_target, mini_
     
     return losses, accuracies
 
-#def compute_nb_errors(model, data_input, data_target, mini_batch_size):
-#
-#    nb_errors = 0
-#
-#    for b in range(0, data_input.size(0), mini_batch_size):
-#        output = model(data_input.narrow(0, b, mini_batch_size))
-#        _, predicted_classes = torch.max(output, 1)
-#        for k in range(mini_batch_size):
-#            if data_target[b + k] != predicted_classes[k]:
-#                nb_errors += + 1
-#
-#    return nb_errors
-#
+def compute_nb_errors(model, data_input, data_target, mini_batch_size):
+
+    nb_errors = 0
+
+    for b in range(0, data_input.size(0), mini_batch_size):
+        output = model(data_input.narrow(0, b, mini_batch_size))
+        _, predicted_classes = torch.max(output, 1)
+        for k in range(mini_batch_size):
+            if data_target[b + k] != predicted_classes[k]:
+                nb_errors += + 1
+
+    return nb_errors
+
 def run_model(model_in, device, nb_samples=1000, nb_epochs=25, mini_batch_size=100, criterion=nn.CrossEntropyLoss(), eta=9e-2, eta2=1e-3, lossplot=True):
     
     # Load data
@@ -221,36 +221,36 @@ def run_model(model_in, device, nb_samples=1000, nb_epochs=25, mini_batch_size=1
     
     return train_acc, test_acc, train_loss
 
-#def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100, criterion=nn.CrossEntropyLoss(), eta=9e-2, eta2=1e-3, lossplot=True):
-#    
-#    if torch.cuda.is_available():
-#        device = torch.device('cuda')
-#        print("Using : {}".format(device))
-#    else:
-#        device = torch.device('cpu')
-#        print("Using : {}".format(device))
-#    
-#    models = [ConvNet3]
-#    
-#    avg_errors = [[[] for x in range(2)] for y in range(len(models))]
-#
-#    for e in range(nb_average):
-#        for ind, mod in enumerate(models):
-#            train_acc, test_acc, _ = run_model(mod, device, nb_samples, nb_epochs, mini_batch_size, criterion, eta, eta2, lossplot=lossplot)
-#            
-#            avg_errors[ind][0].append(train_acc)
-#            avg_errors[ind][1].append(test_acc)
-#            
-#            print(e, mod().__class__.__name__+': train error = {:0.2f}%,  test error = {:0.2f}%'.format(100-train_acc, 100-test_acc))
-#            
-#    for ind, mod in enumerate(models):
-#        train_average = statistics.mean(avg_errors[:][ind][0])
-#        test_average = statistics.mean(avg_errors[:][ind][1])
-#        
-#        train_std = statistics.stdev(avg_errors[:][ind][0])
-#        test_std = statistics.stdev(avg_errors[:][ind][1])
-#       
-#        print(mod().__class__.__name__+' : train_acc average = {:0.2f}%, test_acc average = {:0.2f}%'.format(train_average, test_average))
-#        print(mod().__class__.__name__+' : train_acc std = {:0.2f}%, test_acc std = {:0.2f}%'.format(train_std, test_std))
-#        
-#    return avg_errors
+def compute_stats(nb_average=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100, criterion=nn.CrossEntropyLoss(), eta=9e-2, eta2=1e-3, lossplot=True):
+    
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+        print("Using : {}".format(device))
+    else:
+        device = torch.device('cpu')
+        print("Using : {}".format(device))
+    
+    models = [ConvNet3]
+    
+    avg_errors = [[[] for x in range(2)] for y in range(len(models))]
+
+    for e in range(nb_average):
+        for ind, mod in enumerate(models):
+            train_acc, test_acc, _ = run_model(mod, device, nb_samples, nb_epochs, mini_batch_size, criterion, eta, eta2, lossplot=lossplot)
+            
+            avg_errors[ind][0].append(train_acc)
+            avg_errors[ind][1].append(test_acc)
+            
+            print(e, mod().__class__.__name__+': train error = {:0.2f}%,  test error = {:0.2f}%'.format(100-train_acc, 100-test_acc))
+            
+    for ind, mod in enumerate(models):
+        train_average = statistics.mean(avg_errors[:][ind][0])
+        test_average = statistics.mean(avg_errors[:][ind][1])
+        
+        train_std = statistics.stdev(avg_errors[:][ind][0])
+        test_std = statistics.stdev(avg_errors[:][ind][1])
+       
+        print(mod().__class__.__name__+' : train_acc average = {:0.2f}%, test_acc average = {:0.2f}%'.format(train_average, test_average))
+        print(mod().__class__.__name__+' : train_acc std = {:0.2f}%, test_acc std = {:0.2f}%'.format(train_std, test_std))
+        
+    return avg_errors
