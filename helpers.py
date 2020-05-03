@@ -1,15 +1,18 @@
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import statistics
 import torch
 from torch import nn
 from torch import optim
 
 import CNN as CNN
 import WS as WS
-import WS_AuxLoss as WS_AL
+import WS_AL as WS_AL
 import dlc_practical_prologue as prologue
+
+import statistics
+
+# Only used for plots 
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
 
 ######################################################################
 
@@ -53,71 +56,6 @@ def get_data(nb_samples, device):
 
     return train_input, test_input, train_target, test_target, train_classes, test_classes
 
-#####################################################################
-
-def plot_loss_acc(train_loss, test_accuracy):
-    '''
-    Creates plot with the train loss and test accuracy
-    Saves the obtained plot
-    '''
-    fig, ax1 = plt.subplots(figsize=(10,7))
-
-    # Plot train loss with log axis
-    color = 'tab:red'
-    ax1.set_xlabel('Epochs')
-    ax1.set_ylabel('Train loss')
-    ax1.set_yscale("log")
-    plt1 = ax1.plot(range(len(train_loss)), train_loss, color=color, label='Train loss')
-    ax1.tick_params(axis='y')
-
-    # Create second axis
-    ax2 = ax1.twinx()  
-
-    # Plot test accuracy on the same plot 
-    color = 'tab:blue'
-    ax2.set_ylabel('Test accuracy %')  
-    plt2 = ax2.plot(range(len(test_accuracy)), test_accuracy, color=color, label='Test accuracy')
-    ax2.tick_params(axis='y')
-
-    # Set legends
-    plts = plt1+plt2
-    labs = [p.get_label() for p in plts]
-    plt.legend(plts, labs, loc='center right')
-
-    fig.tight_layout() 
-    plt.show()
-
-    # Save plot
-    plt.savefig('trainloss_testacc.png', dpi=600)
-
-######################################################################
-
-def boxplot_accuracy(losses):
-    '''
-    Plots all boxplots of the train and test accuracies of all tested models using pandas and seaborn 
-    Saves the obtained plot
-    '''
-    
-    # Create pandas dataframe with losses and train/test column
-    acc = {'CNN train':losses[0][0], 'CNN test':losses[0][1], 'WS train':losses[1][0], 'WS test':losses[1][1], 'WS&AuxLoss train':losses[2][0], 'WS&AuxLoss test':losses[2][1]}
-    df_acc = pd.DataFrame(data=acc)
-    df_acc_melt = pd.melt(df_acc)
-    df_acc_melt['train'] = [1 if x[-1]=='n' else 0 for x in df_acc_melt['variable']]
-    colors = {train: sns.xkcd_rgb["light blue"] if train == 1 else sns.xkcd_rgb["pale red"] for train in df_acc_melt.train}
-    
-    # Draw boxplots 
-    sns.set_style("whitegrid")
-    bxplt = sns.boxplot(x="variable", y="value", hue="train", data=df_acc_melt, palette=colors, dodge=False)
-    bxplt.legend_.remove()
-    fig = plt.gcf()
-    fig.set_size_inches(14, 10)
-    plt.ylabel('Accuracy %', size = 14)
-    plt.xlabel('Networks', size = 14)
-    plt.tick_params(labelsize=12)
-
-    # Save boxplots 
-    plt.savefig('boxplot_acc.png', dpi=600)
-
 ######################################################################
 
 def compute_nb_errors(model, data_input, data_target, mini_batch_size):
@@ -132,16 +70,15 @@ def compute_nb_errors(model, data_input, data_target, mini_batch_size):
         if (str(type(model)) == "<class 'CNN.ConvNet3'>" or str(type(model)) == "<class 'WS.WS_Best_Net'>"):
             output = model(data_input.narrow(0, b, mini_batch_size))
 
-        if (str(type(model)) == "<class 'WS_AuxLoss.AuxLossBest_Net'>"):
+        if (str(type(model)) == "<class 'WS_AL.AuxLossBest_Net'>"):
             output = model(data_input.narrow(0, b, mini_batch_size))[0]
- 
+        
         _, predicted_classes = torch.max(output, 1)
         for k in range(mini_batch_size):
             if data_target[b + k] != predicted_classes[k]:
                 nb_errors += + 1
 
     return nb_errors
-
 
 ######################################################################
 
@@ -150,7 +87,7 @@ def train_model(model, train_input, test_input, train_target, test_target, train
     Trains a given model using given datasets, mini_batch_size, nb_epochs, the loss used (criterion) and parameters gamma, alpha and eta
     Returns the obtained losses and accuracies 
     '''
-    print('> Currently training:', type(model))
+    print('> Currently training:', model.__class__.__name__)
 
     # Squeeze the classes labels (hotlabeling) for the auxLoss
     trainlabel_1 = (train_classes.narrow(1,0,1)).squeeze()
@@ -180,7 +117,7 @@ def train_model(model, train_input, test_input, train_target, test_target, train
                 sum_loss += loss.item()
 
             # If the model is a CNN with weight sharing and an auxiliary loss compute model output, compoute the different losses and optimize that way
-            if (str(type(model)) == "<class 'WS_AuxLoss.AuxLossBest_Net'>"):
+            if (str(type(model)) == "<class 'WS_AL.AuxLossBest_Net'>"):
                 out_compare, out_1, out_2 = model(train_input[b])
                 
                 #Main Loss
@@ -261,6 +198,7 @@ def compute_stats(models, nb_rounds=10, nb_samples=1000, nb_epochs=25, mini_batc
 
     for e in range(nb_rounds):
         for ind, mod in enumerate(models):
+            
             # For each model of the list call the function run (trains + computes accuracy and loss + plots results)
             train_acc, test_acc, _ = run_model(mod, device, nb_samples, nb_epochs, mini_batch_size, criterion, eta, eta2, alpha, gamma, lossplot=lossplot)
             
@@ -269,20 +207,41 @@ def compute_stats(models, nb_rounds=10, nb_samples=1000, nb_epochs=25, mini_batc
             avg_errors[ind][1].append(test_acc)
             
             print(e, mod().__class__.__name__+': train error = {:0.2f}%,  test error = {:0.2f}%'.format(100-train_acc, 100-test_acc))
-            
+    
+    #labels for boxplot
+    labels_bp = []
+    
+    # Compute performance estimates over nb_rounds (average + std deviation)
+    
+    print("\n", '> Perfromance estimates :')
+    
     for ind, mod in enumerate(models):
-        # Compute averages of train and test errors 
-        train_average = statistics.mean(avg_errors[:][ind][0])
-        test_average = statistics.mean(avg_errors[:][ind][1])
+        name = mod().__class__.__name__
         
-        # Compute standard deviation of train and test errors
-        train_std = statistics.stdev(avg_errors[:][ind][0])
-        test_std = statistics.stdev(avg_errors[:][ind][1])
-       
-        print(mod().__class__.__name__+' : train_acc average = {:0.2f}%, test_acc average = {:0.2f}%'.format(train_average, test_average))
-        print(mod().__class__.__name__+' : train_acc std = {:0.2f}%, test_acc std = {:0.2f}%'.format(train_std, test_std))
+        if nb_rounds > 1:
+            # Compute averages of train and test errors 
+            train_average = statistics.mean(avg_errors[:][ind][0])
+            test_average = statistics.mean(avg_errors[:][ind][1])
+            
+            # Compute standard deviation of train and test errors
+            train_std = statistics.stdev(avg_errors[:][ind][0])
+            test_std = statistics.stdev(avg_errors[:][ind][1])
         
-    return avg_errors
+        else: # nb_rounds = 1 
+            # Compute averages of train and test errors 
+            train_average = avg_errors[ind][0][0]
+            test_average = avg_errors[ind][1][0]
+            
+            # Compute standard deviation of train and test errors
+            train_std = 0
+            test_std = 0
+             
+        print(name +' : train_acc average = {:0.2f}%, test_acc average = {:0.2f}%'.format(train_average, test_average))
+        print(name +' : train_acc std = {:0.2f}%, test_acc std = {:0.2f}%'.format(train_std, test_std))
+        
+        labels_bp.append(name)
+        
+    return avg_errors, labels_bp
 
 ######################################################################
 
@@ -291,8 +250,76 @@ def run(models, nb_rounds, nb_epochs, boxplot=True, lossplot=False):
     For all models of the list models and given the nb_rounds and nb_epochs, will run, 
     train, compute stats of the models and plot the boxplot of the obtained accuracies if boxplot=True
     '''
-    avg_errors = compute_stats(models, nb_rounds=nb_rounds, nb_epochs=nb_epochs, lossplot=lossplot)
+    avg_errors, labels_bp = compute_stats(models, nb_rounds=nb_rounds, nb_epochs=nb_epochs, lossplot=lossplot)
+    
     if (boxplot):
-        boxplot_accuracy(avg_errors)
+        boxplot_accuracy(avg_errors, labels_bp)
 
 ######################################################################
+
+def plot_loss_acc(train_loss, test_accuracy):
+    '''
+    Creates plot with the train loss and test accuracy
+    Saves the obtained plot
+    '''
+    fig, ax1 = plt.subplots(figsize=(8,8))
+
+    # Plot train loss with log axis
+    color = 'tab:red'
+    ax1.set_xlabel('Epochs')
+    ax1.set_ylabel('Train loss')
+    ax1.set_yscale("log")
+    plt1 = ax1.plot(range(len(train_loss)), train_loss, color=color, label='Train loss')
+    ax1.tick_params(axis='y')
+
+    # Create second axis
+    ax2 = ax1.twinx()  
+
+    # Plot test accuracy on the same plot 
+    color = 'tab:blue'
+    ax2.set_ylabel('Test accuracy %')  
+    plt2 = ax2.plot(range(len(test_accuracy)), test_accuracy, color=color, label='Test accuracy')
+    ax2.tick_params(axis='y')
+
+    # Set legends
+    plts = plt1+plt2
+    labs = [p.get_label() for p in plts]
+    plt.legend(plts, labs, loc='center right')
+
+    fig.tight_layout() 
+
+    # Save plot
+    plt.savefig('trainloss_testacc.png', dpi=600, transparent=True)
+    plt.show()
+    
+#####################################################################
+
+def boxplot_accuracy(losses, labels):
+    '''
+    Plots all boxplots of the train and test accuracies of all tested models using pandas and seaborn 
+    Saves the obtained plot
+    '''
+    # Create pandas dataframe with losses and train/test column
+    acc = {}
+    for ind, lab in enumerate(labels):
+        tmp = {lab+' train':losses[ind][0], lab+' test':losses[ind][1]}
+        acc.update(tmp)
+      
+    df_acc = pd.DataFrame(data=acc)
+    df_acc_melt = pd.melt(df_acc)
+    df_acc_melt['train'] = [1 if x[-1]=='n' else 0 for x in df_acc_melt['variable']]
+    colors = {train: sns.xkcd_rgb["light blue"] if train == 1 else sns.xkcd_rgb["pale red"] for train in df_acc_melt.train}
+    
+    # Draw boxplots 
+    sns.set_style("whitegrid", {'ytick.left': True, 'axes.edgecolor': 'k'})
+    bxplt = sns.boxplot(x="variable", y="value", hue="train", data=df_acc_melt, palette=colors, dodge=False)
+    bxplt.legend_.remove()
+    fig = plt.gcf()
+    fig.set_size_inches(20, 12 )
+    plt.ylabel('Accuracy %', size = 14)
+    plt.xlabel('Networks', size = 14)
+    plt.tick_params(labelsize=12)
+
+    # Save boxplots 
+    plt.savefig('boxplot_acc.png', dpi=600, transparent=True)
+    plt.show()
