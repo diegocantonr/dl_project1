@@ -67,12 +67,13 @@ def compute_nb_errors(model, data_input, data_target, mini_batch_size):
     nb_errors = 0
 
     for b in range(0, data_input.size(0), mini_batch_size):
-        if (str(type(model)) == "<class 'CNN.ConvNet3'>" or str(type(model)) == "<class 'WS.WS_Best_Net'>"):
-            output = model(data_input.narrow(0, b, mini_batch_size))
-
-        if (str(type(model)) == "<class 'WS_AL.AuxLossBest_Net'>"):
-            output = model(data_input.narrow(0, b, mini_batch_size))[0]
         
+        output = model(data_input.narrow(0, b, mini_batch_size))
+        
+        # If output contains more than one value it gets the first one (AuxLoss model return 3 values)
+        if isinstance(output, tuple):
+            output = output[0]
+            
         _, predicted_classes = torch.max(output, 1)
         for k in range(mini_batch_size):
             if data_target[b + k] != predicted_classes[k]:
