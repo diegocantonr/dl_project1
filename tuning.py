@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from helpers import model_tuning
-import WS_AL as WS_AL
+import WS_AL
 
 model = WS_AL.AuxLoss_Net
 
