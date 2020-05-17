@@ -1,9 +1,10 @@
-
 import torch
 from torchvision import datasets
 
 import argparse
 import os
+
+# Written by Francois Fleuret <francois@fleuret.org>
 
 ######################################################################
 

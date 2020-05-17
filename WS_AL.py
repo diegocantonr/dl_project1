@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch import optim
-    
+
 ############################################################################################################################################
     
 class ConvNet(nn.Module):
@@ -61,22 +61,23 @@ class final_predictionlayer(nn.Module):
         x = self.dropout(self.bn2(F.relu(self.fc2(x))))
         x = self.fc3(x)
         
-        return x.softmax(1)
-    
-############################################################################################################################################
+        return x.softmax(1)    
 
-class WS_Net(nn.Module):
+############################################################################################################################################
+    
+class AuxLoss_Net(nn.Module):
     ''' This model puts together the 2 previous modules 
+        and moreover outputs the 10 classes for each image computed after the convolutional network module
     '''
     def __init__(self):
-        super(WS_Net, self).__init__()
+        super(AuxLoss_Net,self).__init__()
         self.shared = ConvNet()
         self.final = final_predictionlayer()
     
     def forward(self,x):
         # View only one image
-        tmp1 = x.narrow(1,0,1)
-        # View only one image 
+        tmp1 = x.narrow(1,0,1) 
+        # View only one image
         tmp2 = x.narrow(1,1,1) 
         
         # Apply the conv layers
@@ -84,7 +85,8 @@ class WS_Net(nn.Module):
         tmp2 = self.shared(tmp2)
         
         # View and final prediction
-        output = torch.cat((tmp1,tmp2),1)
+        output = torch.cat((tmp1,tmp2),1)        
+        
         x = self.final(output)
         
-        return x
+        return x, tmp1, tmp2   
