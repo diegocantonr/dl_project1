@@ -42,8 +42,8 @@ class ConvNet(nn.Module):
 class final_predictionlayer(nn.Module):
     ''' This module takes as input the concatenated outputs of ConvNet for each image
         and reduce the vector through a 3 layers MLP into 2 classes
-        0 : if 1st digit is lesser of equal than the 2nd   
-        1 : otherwise
+        1 : if 1st digit is lesser of equal than the 2nd   
+        0 : otherwise
 
     '''
     def __init__(self):
@@ -74,16 +74,16 @@ class WS_Net(nn.Module):
         self.final = final_predictionlayer()
     
     def forward(self,x):
-        # View only one image
+        # View image 1
         tmp1 = x.narrow(1,0,1)
-        # View only one image 
+        # View image 2
         tmp2 = x.narrow(1,1,1) 
         
-        # Apply the conv layers
+        # Apply the convolutional layers
         tmp1 = self.shared(tmp1)
         tmp2 = self.shared(tmp2)
         
-        # View and final prediction
+        # Final MLP
         output = torch.cat((tmp1,tmp2),1)
         x = self.final(output)
         

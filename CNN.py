@@ -12,8 +12,8 @@ class ConvNet(nn.Module):
                                                            ->  64 x  4 x  4   Convolution (3x3 kernel)
                                                            ->  64 x  2 x  2   MaxPool (2x2 kernel + stride=2) + ReLu
         The model outputs 2 classes                        ->  256            view(-1)
-        0 : if 1st digit is lesser of equal than the 2nd   ->  200            Fully connected layer 1 (256 -> 200) + ReLu + BatchNorm1d + Dropout
-        1 : otherwise                                      ->  100            Fully connected layer 2 (200 -> 100) + ReLu + BatchNorm1d + Dropout
+        1 : if 1st digit is lesser of equal than the 2nd   ->  200            Fully connected layer 1 (256 -> 200) + ReLu + BatchNorm1d + Dropout
+        0 : otherwise                                      ->  100            Fully connected layer 2 (200 -> 100) + ReLu + BatchNorm1d + Dropout
                                                            ->  2              Fully connected layer 3 (100 ->   2) = Output
     '''
     
@@ -35,4 +35,4 @@ class ConvNet(nn.Module):
         x = self.dropout(self.bn1(F.relu(self.fc1(x.view(-1, 256)))))
         x = self.dropout(self.bn2(F.relu(self.fc2(x))))
         x = self.fc3(x)
-        return x
+        return x.softmax(1)

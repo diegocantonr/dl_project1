@@ -12,6 +12,7 @@ import dlc_practical_prologue as prologue
 import statistics
 
 # Only used for plots 
+import os 
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -107,6 +108,7 @@ def train_model(model, train_input, test_input, train_target, test_target, train
             optimizer = optim.SGD(model.parameters(), lr = eta2, weight_decay=5e-4)
         
         sum_loss = 0
+        # the samples are randomily distributed in batches of sizes 100
         for b in list(torch.utils.data.BatchSampler(torch.utils.data.RandomSampler(range(train_input.size(0))), batch_size=mini_batch_size, drop_last=False)):
             
             # If the model is a simple CNN or a CNN with weight sharing compute model output, loss and optimize this way 
@@ -138,8 +140,9 @@ def train_model(model, train_input, test_input, train_target, test_target, train
                 
                 sum_loss += loss.item()
         
+        # values of train_loss and test_acc for the plot
         losses.append(sum_loss)
-
+        
         test_error = compute_nb_errors(model, test_input, test_target, mini_batch_size)
         test_acc = 100-100*(test_error/test_input.size(0))
         accuracies.append(test_acc)
@@ -150,9 +153,9 @@ def train_model(model, train_input, test_input, train_target, test_target, train
 
 def run_model(model_in, device, nb_samples=1000, nb_epochs=25, mini_batch_size=100, criterion=nn.CrossEntropyLoss(), eta=9e-2, eta2=1e-3, alpha=.75, gamma=1, lossplot=True):
     '''
-    Given a model, and needed parameters for this, loads the data, moves model to the appropriate device (GPU or CPU), 
-    trains model, computes accuracy and plots train loss + test accuracy
-    Returns the train and test accuracies and the train loss
+    Given a model, loads the data, moves model to the appropriate device (GPU or CPU), 
+    trains model, computes accuracy and plots train loss + test accuracy if parameter set to TRUE
+    Returns the train and test accuracies used further to asses performance estimates
     '''
 
     # Load and prepare data
@@ -184,8 +187,8 @@ def run_model(model_in, device, nb_samples=1000, nb_epochs=25, mini_batch_size=1
 
 def compute_stats(models, nb_rounds=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100, criterion=nn.CrossEntropyLoss(), eta=9e-2, eta2=1e-3, alpha=.75, gamma=1, lossplot=False):
     '''
-    Given a list of models and the number of rounds to perform and parameters needed for the models, computes the average train and test errors + accuracies
-    Returns the average errors of train and test sets over the rounds and the labels for the boxplot (= name of models)
+    Given a list of models, the number of rounds on which to asses performance, parameters needed for the models, computes the average train and test accuracies
+    Returns the average accuracy of train and test sets over the rounds and the labels for the boxplot (= name of models)
     '''
 
     # Verify if GPU is available otherwise use CPU
@@ -201,9 +204,10 @@ def compute_stats(models, nb_rounds=10, nb_samples=1000, nb_epochs=25, mini_batc
     for e in range(nb_rounds):
         for ind, mod in enumerate(models):
             
+            # return test and train accuracy
             train_acc, test_acc = run_model(mod, device, nb_samples, nb_epochs, mini_batch_size, criterion, eta, eta2, alpha, gamma, lossplot=lossplot)
             
-            # Store average errors of train and test
+            # Store average accuracy of train and test
             avg_errors[ind][0].append(train_acc)
             avg_errors[ind][1].append(test_acc)
             
@@ -246,7 +250,10 @@ def compute_stats(models, nb_rounds=10, nb_samples=1000, nb_epochs=25, mini_batc
 ############################################################################################################################################
 
 def model_tuning(model_in, params, validation_size=0.2, nb_rounds=10, nb_samples=1000, nb_epochs=25, mini_batch_size=100, criterion=nn.CrossEntropyLoss()):
-    ''' This functions outputs the best hyperparameters for a given model applying a grid search on a given set of parameters
+    ''' 
+    This functions outputs the best hyperparameters for a given model applying the grid search method on a given set of parameters
+    The training set is splitted into a validation set and a training set given validation_size
+    For each combination of parameters, model is trained on the training set and performance averaged over nb_rounds is computed on the validation set 
     '''
     
     if torch.cuda.is_available():
@@ -284,7 +291,6 @@ def model_tuning(model_in, params, validation_size=0.2, nb_rounds=10, nb_samples
                         train_target = train_target[train_idx]
                         train_classes = train_classes[train_idx]
                         
-                    
                         # Normalize data
                         train_input, validation_input = normalize(train_input, validation_input)
                         
@@ -365,8 +371,11 @@ def plot_loss_acc(train_loss, test_accuracy):
 
     fig.tight_layout() 
 
+    if not os.path.exists('figures'):
+    os.makedirs('figures')
+
     # Save plot
-    plt.savefig('trainloss_testacc.png', dpi=600, transparent=True)
+    plt.savefig('./figures/trainloss_testacc.png', dpi=600, transparent=True)
     plt.show()
     
 ###########################################################################################################################################
@@ -397,6 +406,9 @@ def boxplot_accuracy(losses, labels):
     plt.xlabel('Networks', size = 14)
     plt.tick_params(labelsize=12)
 
+    if not os.path.exists('figures'):
+    os.makedirs('figures')
+
     # Save boxplots 
-    plt.savefig('boxplot_acc.png', dpi=600, transparent=True)
+    plt.savefig('./figures/boxplot_acc.png', dpi=600, transparent=True)
     plt.show()
