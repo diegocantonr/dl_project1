@@ -372,7 +372,7 @@ def plot_loss_acc(train_loss, test_accuracy):
     fig.tight_layout() 
 
     if not os.path.exists('figures'):
-    os.makedirs('figures')
+        os.makedirs('figures')
 
     # Save plot
     plt.savefig('./figures/trainloss_testacc.png', dpi=600, transparent=True)
@@ -407,7 +407,7 @@ def boxplot_accuracy(losses, labels):
     plt.tick_params(labelsize=12)
 
     if not os.path.exists('figures'):
-    os.makedirs('figures')
+        os.makedirs('figures')
 
     # Save boxplots 
     plt.savefig('./figures/boxplot_acc.png', dpi=600, transparent=True)
